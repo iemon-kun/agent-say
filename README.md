@@ -59,11 +59,20 @@ args = [
 ローカルで直接試す場合は、仮想環境を有効化したうえで `cd agent-say && python main.py` または `uv run python main.py` を実行してください。
 
 ## ツール仕様
-- `speak(text, engine="auto", timeout_seconds=20.0, warmup=False)`
+- `speak(text, engine="auto", speed=1.0, timeout_seconds=20.0, warmup=False, wait_for_completion=False, dedupe_seconds=30.0, hard_timeout_seconds=600.0)`
   - `engine`: `auto` / `say` / `swift` / `espeak`（`auto` は利用可能なものを優先）
-  - `timeout_seconds`: 読み上げ 1 回あたりのタイムアウト（デフォルト時は自動計算し、推定が 300 秒未満でも 300 秒に張り付き、推定が 300 秒以上なら推定値を採用します。明示指定がある場合はその値を優先します）
+  - `speed`: 話速倍率（`1.0` が標準、例: `1.2`）。`say`/`espeak` は WPM 相当に変換し、`swift` は `AVSpeechUtterance.rate` を倍率で調整します（体感が完全一致する保証はありません）
+  - `timeout_seconds`: 読み上げ 1 回あたりのタイムアウト（`wait_for_completion=True` のときにのみ使用。デフォルト時は自動計算し、推定が 300 秒未満でも 300 秒に張り付き、推定が 300 秒以上なら推定値を採用します。明示指定がある場合はその値を下限として扱います）
   - `warmup`: `True` で先に短い発話（「ウォームアップ」）を行い、初回遅延を減らす
+  - `wait_for_completion`: `False`（デフォルト）だと非同期で開始だけ行い、すぐに成功応答を返します（呼び出し側のツール呼び出しタイムアウトで再試行される問題を避けやすくなります）
+  - 同時実行上限: 2（上限を超えると `Speech busy...` を返して開始しません）
+  - `dedupe_seconds`: 同一テキストの重複実行をこの秒数だけ抑止します（短時間の再試行で二重読み上げになるのを防ぎます）
+  - `hard_timeout_seconds`: 非同期実行時のハード上限（秒）。異常に長引く/ハングするケースの保険です
   - 読み上げ速度をエンジン別に観測して移動平均を更新し、次回以降の自動タイムアウト推定に使います。
+  - 返り値には `mode`（`async`/`sync`）や `hard_timeout` など、実際に適用された状態を括弧付きで含めます。
+
+- `stop_speech(all=True)`
+  - 実行中の読み上げを停止します（`all=False` で直近 1 件のみ停止）
 
 ## 備考
 - 標準出力は MCP の JSON-RPC 用、ログは標準エラーに出力します。
